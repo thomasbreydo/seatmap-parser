@@ -1,55 +1,50 @@
-"""Output format for JSON:
-
-Primary key indicates row.
+"""Output format for JSON (primary key indicates row):
 
 {
     "1": [
         {
             "id": "1A"
-            "price": ""
-            "currency": ""
-            "available": false
+            "available": false,
+            "cabinClass": "Economy",
+            "price": "no offer",
+            "currency": "no offer",
             "seatType": [
                "Limited Recline",
                 "Center"
-            ],
-            "cabinClass": "Economy"
+            ]
         },
         {
-            "id": "1B"
-            "price": "44"
-            "currency": "USD"
-            "available": true
+            "id": "1B",
+            "available": true,
+            "cabinClass": "Economy"
+            "price": 44.0,
+            "currency": "USD",
             "seatType": [
                 "Window"
             ]
-            "cabinClass": "Economy"
         },
     ],
     "2": [
-        .
-        .
-        .
-},
+        ...
 """
 import argparse
 import os
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # noqa: standard import alias is CamelCase
 import json
 import sys
 
 # OpenTravel namespaces
-from collections import namedtuple
-
 OTNS = {
     "soapenv": "http://schemas.xmlsoap.org/soap/envelope/",
     "ns": "http://www.opentravel.org/OTA/2003/05/common/",
 }
 
+# IATA namespaces
 IATANS = {"": "http://www.iata.org/IATA/EDIST/2017.2"}
 
 
-def main():
+def cli():
+    """Main command-line interface for this app."""
     parser = argparse.ArgumentParser(description="Parse XML seatmaps into JSON")
     parser.add_argument(
         "input_file", type=argparse.FileType("r"), help="XML input file", nargs=1
@@ -66,6 +61,7 @@ def main():
 
 
 def parse_from(in_file):
+    """Parse the XML in_file and save to [FILENAME]_parsed.json"""
     tree = ET.parse(in_file)
     root = tree.getroot()
     if root.tag.endswith("Envelope"):
@@ -76,6 +72,7 @@ def parse_from(in_file):
 
 
 def parse_opentravel(root):
+    """Parse the OpenTravel XML in_file and save to [FILENAME]_parsed.json"""
     out = {}
     cabins = root.iterfind(
         (
@@ -104,14 +101,14 @@ def parse_opentravel(root):
                         "id": summary.get("SeatNumber"),
                         "available": summary.get("AvailableInd") == "true",
                         "cabinClass": cabin_class,
+                        "price": price,
+                        "currency": currency,
                         "seatType": [
                             feat.text
                             if "Other" not in feat.text
                             else feat.get("extension")
                             for feat in seat.iterfind("ns:Features", OTNS)
                         ],
-                        "price": price,
-                        "currency": currency,
                     }
                 )
             out[row.get("RowNumber")] = seats
@@ -119,6 +116,7 @@ def parse_opentravel(root):
 
 
 def parse_iata(root):
+    """Parse the IATA XML in_file and save to [FILENAME]_parsed.json"""
     offers = {}
     for offer in root.iterfind("ALaCarteOffer/ALaCarteOfferItem", namespaces=IATANS):
         currency_price = offer.find(
@@ -164,8 +162,14 @@ def parse_iata(root):
 
 
 def out_name(in_name):
+    """Get the output filename for an XML in_name.
+
+    Examples:
+        >>> out_name("/Users/exampleperson/Documents/seatmap1.xml")
+        'seatmap1_parsed.json'
+    """
     return f"{''.join(os.path.basename(in_name).split('.')[:-1])}_parsed.json"
 
 
 if __name__ == "__main__":
-    main()
+    cli()  # CLI
